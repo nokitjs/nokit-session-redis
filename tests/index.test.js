@@ -15,33 +15,32 @@ var sessionId = '12345';
 
 describe('session-redis', function () {
 
+    var session = new Session({
+        "configs": configs
+    });
+
     describe('#init', function () {
-        it('可以正确初始化', function (done) {
-            Session.init({
-                configs: configs
-            }, done);
+        it('初始化', function (done) {
+            session.init(configs.session, function () {
+                assert.notEqual(session.client, null);
+                done();
+            });
         });
     });
 
-    describe('#set', function () {
-        it('可以正确设置值', function (done) {
-            var session = new Session({
-                configs: configs,
-                sessionId: sessionId
+    describe('#save', function () {
+        it('保存 session', function (done) {
+            session.save(sessionId, { "name": "test" }, function () {
+                done();
             });
-            session.set('test', '1', done);
         });
     });
 
-    describe('#get', function () {
-        it('可以正确获取值', function (done) {
-            var session = new Session({
-                configs: configs,
-                sessionId: sessionId
-            });
-            session.get('test', function (err, value) {
-                console.log(value);
-                assert.equal(value, '1');
+    describe('#load', function () {
+        it('加载 session', function (done) {
+            session.load(sessionId, function (err, sessionObj) {
+                console.log(sessionObj);
+                assert.equal(sessionObj.name, 'test');
                 done();
             });
         });
