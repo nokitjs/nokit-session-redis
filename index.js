@@ -7,19 +7,26 @@ var TIMEOUT = 30;
 /**
  * session 类
  **/
-function SessionRedis(server) {
+function SessionRedis(context) {
     var self = this;
-    self.configs = server.configs.session;
-};
+    self.context = context;
+    self.sessionConfigs = context.configs.session;
+    self.sessionId = self.context.sessionId;
+    self.storeKey = PREFIX + self.sessionId;
+}
 
 /**
- * 初始化 session provider
+ * 静态初始化方法
+ * 一般用于和 session 存储服务进行连接
  **/
-SessionRedis.prototype.init = function (configs, callback) {
-    var self = this;
-    self.client = redis.createClient(configs.port, configs.host, configs.options);
-    if (configs.auth) {
-        self.client.auth(configs.auth.password, callback);
+SessionRedis.init = function (server, callback) {
+    var self = SessionRedis;
+    var sessionConfigs = server.configs.session;
+    self.client = redis.createClient(sessionConfigs.port,
+        sessionConfigs.host,
+        sessionConfigs.options);
+    if (sessionConfigs.auth) {
+        self.client.auth(sessionConfigs.auth.password, callback);
     } else {
         if (callback) callback();
     }
@@ -27,38 +34,86 @@ SessionRedis.prototype.init = function (configs, callback) {
 };
 
 /**
+ * 读取对象私有方法
+ **/
+SessionRedis.prototype._getObj = function (callback) {
+    var self = this;
+    SessionRedis.client.get(self.storeKey,
+        function (err, json) {
+            if (err) {
+                throw err;
+            }
+            var sessionObj = JSON.parse(json || '{}');
+            if (callback) {
+                callback(sessionObj);
+            }
+        });
+    return self;
+};
+
+/**
+ * 保存对象私有方法
+ **/
+SessionRedis.prototype._setObj = function (sessionObj, callback) {
+    var self = this;
+    var sessionJson = JSON.stringify(sessionObj);
+    SessionRedis.client.set(self.storeKey, sessionJson, function (err) {
+        if (err) {
+            throw err;
+        }
+        if (callback) {
+            callback();
+        }
+    });
+    return self;
+};
+
+/**
+ * 保持活动状态
+ **/
+SessionRedis.prototype.active = function () {
+    var self = this;
+    var ttl = (self.sessionConfigs.timeout || TIMEOUT) * 60;
+    SessionRedis.client.expire(self.storeKey, ttl);
+    return self;
+};
+
+/**
  * 保存 session
  **/
-SessionRedis.prototype.save = function (sessionId, sessionObj, callback) {
+SessionRedis.prototype.set = function (name, value, callback) {
     var self = this;
-    self.client.set(PREFIX + sessionId,
-        JSON.stringify(sessionObj),
-        function (err, rs) {
-            if (err) {
-                callback(err);
-                return self;
-            }
-            var ttl = (self.configs.timeout || TIMEOUT) * 60;
-            self.client.expire(self.key, ttl);
-            callback(err, rs);
-        });
+    self._getObj(function (sessionObj) {
+        sessionObj[name] = value;
+        self._setObj(sessionObj, callback);
+        self.active();
+    });
     return self;
 };
 
 /**
  * 获取一个 seesion 值
  **/
-SessionRedis.prototype.load = function (sessionId, callback) {
+SessionRedis.prototype.get = function (name, callback) {
     var self = this;
-    self.client.get(PREFIX + sessionId,
-        function (err, json) {
-            if (err) {
-                callback(err);
-                return self;
-            }
-            var sessionObj = JSON.parse(json || '{}');
-            callback(null, sessionObj);
-        });
+    self._getObj(function (sessionObj) {
+        if (callback) {
+            callback(sessionObj[name]);
+        }
+    });
+    return self;
+};
+
+/**
+ * 移除一个 session
+ **/
+SessionRedis.prototype.remove = function (name, callback) {
+    var self = this;
+    self._getObj(function (sessionObj) {
+        sessionObj[name] = null;
+        delete sessionObj[name];
+        self._setObj(sessionObj, callback);
+    });
     return self;
 };
 
