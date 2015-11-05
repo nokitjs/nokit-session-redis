@@ -1,6 +1,6 @@
 {
   "name": "nokit-session-redis",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "session provicer based on redis",
   "main": "index.js",
   "scripts": {
