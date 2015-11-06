@@ -2,7 +2,7 @@
 var redis = require("redis");
 
 var PREFIX = "session:";
-var TIMEOUT = 30;
+var DEFAULT_TIMEOUT = 1800;
 
 /**
  * session 类
@@ -73,7 +73,7 @@ SessionRedis.prototype._setObj = function (sessionObj, callback) {
  **/
 SessionRedis.prototype.active = function () {
     var self = this;
-    var ttl = (self.sessionConfigs.timeout || TIMEOUT) * 60;
+    var ttl = (self.sessionConfigs.timeout || DEFAULT_TIMEOUT);
     SessionRedis.client.expire(self.storeKey, ttl);
     return self;
 };
